@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Airburst.Client/AirburstClient.csproj" />
+  <Project Path="Airburst.Server/AirburstServer.csproj" />
+</Solution>

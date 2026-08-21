@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>maschine-Airburst.Server</AssemblyName>
+    <RootNamespace>AirburstServer</RootNamespace>
+    <Company>https://github.com/maschine34675/Airburst</Company>
+    <Authors>maschine</Authors>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Version>1.0.0</Version>
+    <Deterministic>true</Deterministic>
+    <DeployToSpt Condition="'$(DeployToSpt)' == ''">true</DeployToSpt>
+    <SptRoot Condition="'$(SptRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\</SptRoot>
+    <SptModName>Airburst</SptModName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SPTarkov.Server.Core" Version="4.1.0" />
+    <PackageReference Include="WTT-ServerCommonLib" Version="3.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="db\CustomItems\*.json" />
+  </ItemGroup>
+
+  <Target Name="DeployToSpt" AfterTargets="Build" Condition="'$(DeployToSpt)' == 'true'">
+    <Error Condition="'$(SptRoot)' == ''" Text="Set SptRoot when DeployToSpt=true." />
+    <Error Condition="!Exists('$(SptRoot)\EscapeFromTarkov.exe')"
+           Text="SptRoot '$(SptRoot)' is not an SPT installation (no EscapeFromTarkov.exe). A relative or mistyped path would deploy into the repository; pass an absolute path or omit SptRoot to use the default." />
+    <PropertyGroup>
+      <ServerModDirectory>$(SptRoot)\SPT_Runtime\user\mods\$(SptModName)</ServerModDirectory>
+    </PropertyGroup>
+    <MakeDir Directories="$(ServerModDirectory)\db\CustomItems" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ServerModDirectory)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ServerModDirectory)" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    <ItemGroup>
+      <CustomItemJson Include="db\CustomItems\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CustomItemJson)" DestinationFolder="$(ServerModDirectory)\db\CustomItems" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
