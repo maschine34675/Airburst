@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Satelliten-Assembly mit den Fika-Typen (siehe FikaBridge.cs). Kein
+       BepInPlugin - BepInEx laedt sie nie selbst; die Haupt-DLL loest sie nur
+       auf, wenn com.fika.core vorhanden ist. Wird zusammen mit der Client-DLL
+       nach BepInEx/plugins deployt (DeployToSpt-Target im Client-Projekt). -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>maschine-Airburst.Client.Fika</AssemblyName>
+    <RootNamespace>Airburst.Networking</RootNamespace>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0</AssemblyVersion>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <Nullable>disable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <SptRoot Condition="'$(SptRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\</SptRoot>
+    <!-- Fika.Core.dll (2.4.x) nur zur Kompilierung (Private=false). Gesucht in
+         der Fika-Schwesterinstallation neben dem SP-Root, im SP-Root selbst und
+         auf dem gemounteten Fika-Client; ueberschreibbar mit /p:FikaPluginDir=...\ -->
+    <FikaPluginDir Condition="'$(FikaPluginDir)' == '' And Exists('$(SptRoot)\..\SPT41Fika\BepInEx\plugins\Fika\Fika.Core.dll')">$(SptRoot)\..\SPT41Fika\BepInEx\plugins\Fika\</FikaPluginDir>
+    <FikaPluginDir Condition="'$(FikaPluginDir)' == '' And Exists('$(SptRoot)\BepInEx\plugins\Fika\Fika.Core.dll')">$(SptRoot)\BepInEx\plugins\Fika\</FikaPluginDir>
+    <FikaPluginDir Condition="'$(FikaPluginDir)' == '' And Exists('Z:\BepInEx\plugins\Fika\Fika.Core.dll')">Z:\BepInEx\plugins\Fika\</FikaPluginDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Fika.Core">
+      <HintPath>$(FikaPluginDir)Fika.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(SptRoot)\EscapeFromTarkov_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(SptRoot)\EscapeFromTarkov_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CheckFikaReference" BeforeTargets="BeforeBuild">
+    <Error Condition="'$(FikaPluginDir)' == '' Or !Exists('$(FikaPluginDir)Fika.Core.dll')"
+           Text="Fika.Core.dll not found. Install Fika 2.4.x next to the SP root (..\SPT41Fika\BepInEx\plugins\Fika\) or pass /p:FikaPluginDir=&lt;dir&gt;\ (trailing backslash)." />
+  </Target>
+
+</Project>

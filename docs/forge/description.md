@@ -15,7 +15,7 @@ Extract the release ZIP into your SPT installation directory. Client files go to
 
 - SPT: 4.1.x, built and tested on 4.1 (single player).
 - Dependencies: [WTT-ServerCommonLib](https://github.com/WelcomeToTarkov/WTT-CommonLib) (`com.wtt.commonlib`) is required. [ScopeRangefinder](https://github.com/maschine34675/ScopeRangefinder) is optional — with it installed, locks and bursts use its meter-exact live measurement instead of the 50 m sight zeroing steps.
-- **Not compatible with Fika (co-op):** the M397A1 stays inert there and the XM1166's mid-air detonation desyncs between players.
+- **Fika (co-op): experimental.** Tested with a headless host and one client: the XM1166 burst point is synchronised between peers. Raids with several clients are not tested yet. Every player and the headless host need the identical Airburst build, and the host should add `com.maschine.Airburst` to Fika's `client.mods.required`.
 
 ## Known limitations
 

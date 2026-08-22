@@ -15,13 +15,14 @@ Two experimental 40x46mm grenades for SPT that beat cover instead of hitting it:
 - SPT: 4.1.x; built and directly tested on SPT 4.1 in single player.
 - Components: combined client (BepInEx plugin) and server mod — both parts must be installed.
 - Dependencies: [WTT-ServerCommonLib](https://github.com/WelcomeToTarkov/WTT-CommonLib) (`com.wtt.commonlib`) is required. [ScopeRangefinder](https://github.com/maschine34675/ScopeRangefinder) is optional — with it installed, locks and bursts use its meter-exact live measurement instead of the 50 m sight zeroing steps.
-- **Not compatible with Fika (co-op):** Fika replaces the game hook the M397A1 relies on, leaving that round completely inert, and the XM1166's mid-air detonation is computed per machine, so peers see different results (static analysis, 2026-08 audit). Single player only.
+- **Fika (co-op): experimental — tested with a headless host and one client.** The XM1166 burst point is synchronised between peers (the host re-targets the client's shells to the client's range lock; verified in both logs), and the M397A1 fuze no longer depends on the game hook that Fika replaces. Raids with several clients and bot-fired rounds use the same mechanism but have not been tested yet. Every player *and* the headless host must run the identical Airburst build, and the host should add `com.maschine.Airburst` to the Fika server's `client.mods.required` list — a peer without the mod drops network packets on every airburst shot.
 
 ## Installation
 
 1. Extract the release ZIP into your SPT installation directory.
-2. Verify that `BepInEx/plugins/maschine-Airburst.Client.dll` and `SPT_Runtime/user/mods/Airburst/maschine-Airburst.Server.dll` exist.
+2. Verify that `BepInEx/plugins/maschine-Airburst.Client.dll`, `BepInEx/plugins/maschine-Airburst.Client.Fika.dll` (only used when Fika is installed) and `SPT_Runtime/user/mods/Airburst/maschine-Airburst.Server.dll` exist.
 3. Start the server, then the game; the rounds appear at Skier (LL2).
+4. Fika: the server part goes on the Fika server, the client part (both DLLs) on every player's client and on the headless host.
 
 ## Updating
 
@@ -57,7 +58,7 @@ The intended workflow for the XM1166 is the same as the real thing: **range the 
 
 ## Known limitations
 
-- Not compatible with Fika (see above).
+- Fika co-op support is experimental: tested with a headless host and one client, multi-client raids not yet (see above).
 - The GP-25 uses a different caliber (40mmRU) and cannot fire these rounds.
 - On a flat direct shot the XM1166's burst point coincides with the impact — the round is made for lobbing over cover, not for direct fire.
 - Both rounds reuse the vanilla M381 model; tell them apart by name, tracer color, and the in-game toast.
@@ -77,4 +78,4 @@ cd D:\SPT41\Development\Airburst
 dotnet build .\Airburst.slnx -c Release
 ```
 
-With `-p:DeployToSpt=true` (default) the client DLL goes to `BepInEx/plugins/` and the server DLL plus item JSON to `SPT_Runtime/user/mods/Airburst/`. `scripts\New-ReleasePackage.ps1` builds both projects and stages the release ZIP under `artifacts/`.
+With `-p:DeployToSpt=true` (default) the client DLL and the Fika satellite DLL go to `BepInEx/plugins/` and the server DLL plus item JSON to `SPT_Runtime/user/mods/Airburst/`. The satellite compiles against `Fika.Core.dll` (2.4.x); the build looks for it in a Fika installation next to the SPT root (`..\SPT41Fika\BepInEx\plugins\Fika\`), in the SPT root itself, or on `Z:\`, or pass `-p:FikaPluginDir=<dir>\`. `scripts\New-ReleasePackage.ps1` builds both projects and stages the release ZIP under `artifacts/`.

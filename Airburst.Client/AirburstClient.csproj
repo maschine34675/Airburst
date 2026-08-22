@@ -7,13 +7,15 @@
     <Company>https://github.com/maschine34675/Airburst</Company>
     <Nullable>disable</Nullable>
     <Authors>maschine</Authors>
-    <AssemblyVersion>1.0.0</AssemblyVersion>
+    <AssemblyVersion>1.1.0</AssemblyVersion>
     <FileVersion>$(AssemblyVersion)</FileVersion>
     <Configurations>Debug;Release</Configurations>
     <Version>$(AssemblyVersion)</Version>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <DeployToSpt Condition="'$(DeployToSpt)' == ''">true</DeployToSpt>
+    <!-- Relativ zur Arbeitskopie: <Install>\Development\ClusterGrenade\<Teil>\ -> <Install>.
+         Ueberschreibbar mit /p:SptRoot=... -->
     <SptRoot Condition="'$(SptRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\</SptRoot>
   </PropertyGroup>
 
@@ -73,12 +75,25 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Fika-Satellit: nur aus NoInlining-Stubs referenziert, wird erst aufgeloest,
+         wenn com.fika.core geladen ist. Landet per Copy-Local im bin und wird vom
+         DeployToSpt-Target neben die Client-DLL kopiert. -->
+    <ProjectReference Include="../Airburst.Client.Fika/AirburstClientFika.csproj" />
+  </ItemGroup>
+
   <Target Name="DeployToSpt" AfterTargets="Build" Condition="'$(DeployToSpt)' == 'true'">
     <Error Condition="'$(SptRoot)' == ''" Text="Set SptRoot when DeployToSpt=true." />
+    <!-- A SptRoot that lost its backslash on the way in (bash turns
+         -p:SptRoot=D:\SPT41 into D:SPT41) stays drive-relative and resolves
+         INSIDE this repository, quietly spraying build output into the source
+         tree. Refuse anything that is not a real game root instead of
+         trusting the path. -->
     <Error Condition="!Exists('$(SptRoot)\EscapeFromTarkov.exe')"
            Text="SptRoot '$(SptRoot)' is not an SPT installation (no EscapeFromTarkov.exe). A relative or mistyped path would deploy into the repository; pass an absolute path or omit SptRoot to use the default." />
     <MakeDir Directories="$(SptRoot)\BepInEx\plugins" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SptRoot)\BepInEx\plugins" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)maschine-Airburst.Client.Fika.dll" DestinationFolder="$(SptRoot)/BepInEx/plugins" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(SptRoot)\BepInEx\plugins" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
   </Target>
 </Project>

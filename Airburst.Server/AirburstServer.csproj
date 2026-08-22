@@ -8,9 +8,11 @@
     <Authors>maschine</Authors>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Deterministic>true</Deterministic>
     <DeployToSpt Condition="'$(DeployToSpt)' == ''">true</DeployToSpt>
+    <!-- Relativ zur Arbeitskopie: <Install>\Development\ClusterGrenade\<Teil>\ -> <Install>.
+         Ueberschreibbar mit /p:SptRoot=... -->
     <SptRoot Condition="'$(SptRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\</SptRoot>
     <SptModName>Airburst</SptModName>
   </PropertyGroup>
@@ -26,6 +28,11 @@
 
   <Target Name="DeployToSpt" AfterTargets="Build" Condition="'$(DeployToSpt)' == 'true'">
     <Error Condition="'$(SptRoot)' == ''" Text="Set SptRoot when DeployToSpt=true." />
+    <!-- A SptRoot that lost its backslash on the way in (bash turns
+         -p:SptRoot=D:\SPT41 into D:SPT41) stays drive-relative and resolves
+         INSIDE this repository, quietly spraying build output into the source
+         tree. Refuse anything that is not a real game root instead of
+         trusting the path. -->
     <Error Condition="!Exists('$(SptRoot)\EscapeFromTarkov.exe')"
            Text="SptRoot '$(SptRoot)' is not an SPT installation (no EscapeFromTarkov.exe). A relative or mistyped path would deploy into the repository; pass an absolute path or omit SptRoot to use the default." />
     <PropertyGroup>

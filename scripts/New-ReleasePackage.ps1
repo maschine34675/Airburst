@@ -70,6 +70,8 @@ function Find-BuildOutput([string]$projectDirectory, [string]$fileName) {
 
 $clientDll = Find-BuildOutput (Join-Path $repositoryRoot "Airburst.Client") "maschine-Airburst.Client.dll"
 $serverDll = Find-BuildOutput (Join-Path $repositoryRoot "Airburst.Server") "maschine-Airburst.Server.dll"
+# Fika satellite: built as a ProjectReference of the client; ships next to the client DLL and is only loaded when Fika is present.
+$fikaDll = Find-BuildOutput (Join-Path $repositoryRoot "Airburst.Client.Fika") "maschine-Airburst.Client.Fika.dll"
 
 $clientDirectory = Join-Path $stageRoot "BepInEx\plugins"
 # SPT 4.1 server folder is SPT_Runtime, not SPT.
@@ -78,6 +80,7 @@ $itemDirectory = Join-Path $serverDirectory "db\CustomItems"
 New-Item -ItemType Directory -Path $clientDirectory, $serverDirectory, $itemDirectory -Force | Out-Null
 
 Copy-Item -LiteralPath $clientDll -Destination $clientDirectory
+Copy-Item -LiteralPath $fikaDll -Destination $clientDirectory
 Copy-Item -LiteralPath $serverDll -Destination $serverDirectory
 Copy-Item -Path (Join-Path $repositoryRoot "Airburst.Server\db\CustomItems\*.json") -Destination $itemDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "README.md") -Destination $serverDirectory

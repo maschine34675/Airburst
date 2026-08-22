@@ -1,9 +1,11 @@
+using Airburst.Networking;
 using Comfort.Common;
 using EFT;
 using EFT.Animations;
 using EFT.Ballistics;
 using EFT.InventoryLogic;
 using HarmonyLib;
+using JsonType;
 using SPT.Reflection.Patching;
 using System.Collections.Generic;
 using System.Reflection;
@@ -38,6 +40,42 @@ namespace Airburst.Patches
 
             return templateId != null && _templateIds.Contains(templateId);
         }
+        private static string _cachedCaliberConfig;
+        private static readonly HashSet<string> _calibers = new HashSet<string>();
+
+        internal static bool IsAirburstCaliber(string caliber)
+        {
+            if (string.IsNullOrEmpty(caliber))
+            {
+                return false;
+            }
+
+            string raw = Plugin.AirburstShellTemplateIds.Value;
+            if (!ReferenceEquals(raw, _cachedCaliberConfig) && Singleton<ItemFactory>.Instantiated)
+            {
+                _calibers.Clear();
+                ItemTemplates templates = Singleton<ItemFactory>.Instance.ItemTemplates;
+                if (!string.IsNullOrEmpty(raw) && templates != null)
+                {
+                    foreach (string part in raw.Split(','))
+                    {
+                        string id = part.Trim();
+                        if (id.Length > 0 && templates.TryGetValue(id, out ItemTemplate template)
+                            && template is AmmoTemplate ammoTemplate && !string.IsNullOrEmpty(ammoTemplate.Caliber))
+                        {
+                            _calibers.Add(NormalizeCaliber(ammoTemplate.Caliber));
+                        }
+                    }
+                }
+                _cachedCaliberConfig = raw;
+            }
+
+            return _calibers.Contains(NormalizeCaliber(caliber));
+        }
+        private static string NormalizeCaliber(string caliber)
+        {
+            return caliber.StartsWith("Caliber") ? caliber.Substring("Caliber".Length) : caliber;
+        }
 
         internal sealed class TrackedShell
         {
@@ -52,6 +90,10 @@ namespace Airburst.Patches
             public ExplosiveAmmoComponent Explosive;
             public Item Weapon;
             public bool DetonateIfCutShort;
+            public bool JumpUp;
+            public float CreatedTime;
+            public bool Owned = true;
+            public bool NetworkSolution;
         }
         internal const float MaxHeightAboveTarget = 25f;
 
@@ -94,6 +136,7 @@ namespace Airburst.Patches
         {
             AirburstTracker.Tracked.Clear();
             AirburstRangeLock.Clear();
+            AirburstNetwork.ClearRaidState();
         }
     }
 
@@ -112,12 +155,51 @@ namespace Airburst.Patches
                 return;
             }
 
-            if (!AirburstTracker.IsAirburstTemplate(ammo.TemplateId.ToString()))
+            string templateId = ammo.TemplateId.ToString();
+            if (JumpUpHandler.IsJumpUpTemplate(templateId))
             {
+                if (JumpUpHandler.CreatingHop)
+                {
+                    return;
+                }
+
+                AirburstTracker.Tracked.Add(new AirburstTracker.TrackedShell
+                {
+                    Shot = __result,
+                    StartPosition = __result.StartPosition,
+                    LastPosition = __result.StartPosition,
+                    ProfileId = player,
+                    AmmoId = ammo.Id,
+                    Explosive = ammo.GetItemComponent<ExplosiveAmmoComponent>(),
+                    Weapon = weapon,
+                    TargetHeight = float.NaN,
+                    JumpUp = true,
+                });
                 return;
             }
 
-            float burstDistance = ResolveBurstDistance(player, weapon, out string distanceSource, out float targetHeight);
+            if (!AirburstTracker.IsAirburstTemplate(templateId))
+            {
+                return;
+            }
+            float burstDistance;
+            float targetHeight;
+            string distanceSource;
+            bool owned = false;
+            bool networkSolution = AirburstNetwork.TryConsumeSolution(player, __result.StartPosition, out burstDistance, out targetHeight);
+            if (networkSolution)
+            {
+                distanceSource = "peer fire control";
+            }
+            else
+            {
+                burstDistance = ResolveBurstDistance(player, weapon, out distanceSource, out targetHeight, out owned);
+                if (owned)
+                {
+                    AirburstNetwork.Publish(player, __result.StartPosition, burstDistance, targetHeight);
+                }
+            }
+
             AirburstTracker.Tracked.Add(new AirburstTracker.TrackedShell
             {
                 Shot = __result,
@@ -129,10 +211,13 @@ namespace Airburst.Patches
                 AmmoId = ammo.Id,
                 Explosive = ammo.GetItemComponent<ExplosiveAmmoComponent>(),
                 Weapon = weapon,
+                CreatedTime = Time.time,
+                Owned = owned,
+                NetworkSolution = networkSolution,
             });
-            Plugin.LogSource.LogInfo($"Airburst shell tracked: burst at {burstDistance:F1} m ({distanceSource}).");
+            Plugin.LogSource.LogDebug($"Airburst shell tracked: burst at {burstDistance:F1} m ({distanceSource}).");
         }
-        private static float ResolveBurstDistance(string profileId, Item weapon, out string source, out float targetHeight)
+        private static float ResolveBurstDistance(string profileId, Item weapon, out string source, out float targetHeight, out bool owned)
         {
             targetHeight = float.NaN;
 
@@ -141,7 +226,17 @@ namespace Airburst.Patches
                 : null;
             bool localShooter = localPlayer != null && localPlayer.ProfileId == profileId;
 
-            if (localShooter && AirburstRangeLock.TryGetLock(weapon?.Id, out float locked, out float lockedHeight))
+            Player shooter = localShooter
+                ? localPlayer
+                : Singleton<GameWorld>.Instantiated
+                    ? Singleton<GameWorld>.Instance.GetAlivePlayerByProfileID(profileId)
+                    : null;
+            owned = AirburstNetwork.IsOwner(localShooter, shooter != null && shooter.IsAI);
+            float locked = 0f;
+            float lockedHeight = float.NaN;
+            if (localShooter
+                && (AirburstRangeLock.TryGetLock(weapon?.Id, out locked, out lockedHeight)
+                    || AirburstRangeLock.TryGetLock(localPlayer.HandsController?.Item?.Id, out locked, out lockedHeight)))
             {
                 source = "range lock";
                 targetHeight = lockedHeight;
@@ -156,12 +251,6 @@ namespace Airburst.Patches
                 targetHeight = measuredHeight;
                 return measured;
             }
-
-            Player shooter = localShooter
-                ? localPlayer
-                : Singleton<GameWorld>.Instantiated
-                    ? Singleton<GameWorld>.Instance.GetAlivePlayerByProfileID(profileId)
-                    : null;
 
             if (shooter?.HandsController is Player.FirearmController firearmController)
             {
@@ -218,6 +307,26 @@ namespace Airburst.Patches
             {
                 AirburstTracker.TrackedShell entry = tracked[i];
                 Shot shot = entry.Shot;
+
+                if (entry.JumpUp)
+                {
+                    if (shot == null || shot.Ammo == null || shot.Ammo.Id != entry.AmmoId)
+                    {
+                        tracked.RemoveAt(i);
+                        continue;
+                    }
+                    if (shot.HasAchievedTarget)
+                    {
+                        tracked.RemoveAt(i);
+                        JumpUpHandler.OnImpact(entry, shot);
+                        continue;
+                    }
+                    if (shot.IsShotFinished)
+                    {
+                        tracked.RemoveAt(i);
+                    }
+                    continue;
+                }
                 if (shot == null || shot.IsShotFinished || shot.Ammo == null || shot.Ammo.Id != entry.AmmoId)
                 {
                     tracked.RemoveAt(i);
@@ -241,7 +350,7 @@ namespace Airburst.Patches
                 if (!float.IsNaN(entry.TargetHeight)
                     && burstPosition.y - entry.TargetHeight > AirburstTracker.MaxHeightAboveTarget)
                 {
-                    Plugin.LogSource.LogInfo(
+                    Plugin.LogSource.LogDebug(
                         $"Airburst skipped: shell was {burstPosition.y - entry.TargetHeight:F0} m above the target, letting it impact instead.");
                     continue;
                 }

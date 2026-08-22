@@ -1,3 +1,4 @@
+using Airburst.Patches;
 using BepInEx.Configuration;
 using Comfort.Common;
 using EFT;
@@ -58,12 +59,16 @@ namespace Airburst
             {
                 return;
             }
-            if (!(player.HandsController is Player.FirearmController firearmController) || !firearmController.IsAiming)
+            if (!(player.HandsController is Player.FirearmController firearmController) || !CanFireAirburst(firearmController))
+            {
+                return;
+            }
+            if (!firearmController.IsAiming)
             {
                 if (_lockedDistance > 0f)
                 {
                     Clear();
-                    Plugin.LogSource.LogInfo("Airburst range lock cleared.");
+                    Plugin.LogSource.LogDebug("Airburst range lock cleared.");
                     Notify("Airburst range lock cleared", ENotificationIconType.Default, null);
                 }
                 return;
@@ -71,14 +76,14 @@ namespace Airburst
 
             if (!TryMeasureBurstSolution(player, false, out float distance, out float targetHeight, out float rawDistance))
             {
-                Plugin.LogSource.LogInfo("Airburst range lock unchanged: nothing measured.");
+                Plugin.LogSource.LogDebug("Airburst range lock unchanged: nothing measured.");
                 Notify("Airburst: no target measured", ENotificationIconType.Alert, null);
                 return;
             }
 
             if (distance < MinimumBurstDistance)
             {
-                Plugin.LogSource.LogWarning(
+                Plugin.LogSource.LogDebug(
                     $"Airburst range lock refused: {distance:F1} m is inside the {MinimumBurstDistance:F0} m safety minimum.");
                 Notify($"Airburst lock refused: {distance:F0} m (minimum {MinimumBurstDistance:F0} m)", ENotificationIconType.Alert, Color.red);
                 return;
@@ -87,7 +92,7 @@ namespace Airburst
             _lockedDistance = distance;
             _lockedTargetHeight = targetHeight;
             _lockedWeaponId = firearmController.Item?.Id;
-            Plugin.LogSource.LogInfo(
+            Plugin.LogSource.LogDebug(
                 $"Airburst range locked: {distance:F1} m ground range (measured {rawDistance:F1} m + {Plugin.AirburstBurstOffset.Value:F1} m offset).");
 
             string toast = $"Airburst locked: {distance:F0} m";
@@ -99,6 +104,37 @@ namespace Airburst
             }
             Notify(toast, ENotificationIconType.Default, null);
         }
+        private static bool CanFireAirburst(Player.FirearmController firearmController)
+        {
+            return WeaponFitsAirburst(firearmController.Item, firearmController.Item?.AmmoCaliber)
+                || (firearmController.UnderbarrelWeapon != null
+                    && WeaponFitsAirburst(firearmController.UnderbarrelWeapon,
+                        firearmController.UnderbarrelWeapon.WeaponTemplate?.ammoCaliber));
+        }
+
+        private static bool WeaponFitsAirburst(Item weaponItem, string caliber)
+        {
+            if (weaponItem == null)
+            {
+                return false;
+            }
+
+            if (AirburstTracker.IsAirburstCaliber(caliber))
+            {
+                return true;
+            }
+
+            foreach (Item item in weaponItem.GetAllItems())
+            {
+                if (item is Ammo ammo && AirburstTracker.IsAirburstTemplate(ammo.TemplateId.ToString()))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool TryRecommendZeroing(Player player, Player.FirearmController firearmController, float distance, out int recommended, out int current)
         {
             recommended = 0;

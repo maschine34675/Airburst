@@ -1,17 +1,19 @@
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
+using Airburst.Networking;
 using Airburst.Patches;
 using UnityEngine;
 
 namespace Airburst
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
+    [BepInDependency(AirburstNetwork.FikaGuid, BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.maschine.Airburst";
         public const string PluginName = "maschine-Airburst";
-        public const string PluginVersion = "1.0.0";
+        public const string PluginVersion = "1.1.0";
 
         public const string DefaultAirburstShellTemplateId = "67d4f0c8a1b2e30123457041";
         public const string DefaultJumpUpTemplateId = "67d4f0c8a1b2e30123457043";
@@ -51,7 +53,7 @@ namespace Airburst
             new AirburstShotCreatedPatch().Enable();
             new AirburstShotUpdatePatch().Enable();
             new AirburstWorldDisposePatch().Enable();
-            new JumpUpImpactPatch().Enable();
+            AirburstNetwork.Initialize();
             LogSource.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
 

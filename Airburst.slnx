@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Airburst.Client/AirburstClient.csproj" />
+  <Project Path="Airburst.Client.Fika/AirburstClientFika.csproj" />
   <Project Path="Airburst.Server/AirburstServer.csproj" />
 </Solution>
